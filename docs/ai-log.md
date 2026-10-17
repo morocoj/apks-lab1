@@ -10,6 +10,7 @@
 | 1 | 17.10.2026 | manifest `build-engineer.agent.md` | прийнято, знайдено 2 пропуски |
 | 2 | 17.10.2026 | виправлення manifest | пропуски усунено через AI |
 | 3 | 17.10.2026 | skill `project-scaffold` | прийнято без змін |
+| 4 | 17.10.2026 | skill `build-and-test` | прийнято без змін, `ci.sh` перевірено запуском |
 
 ---
 
@@ -162,6 +163,90 @@ Failure scenarios: compiler not found; src/main.cpp already exists with differen
 content (do not overwrite, report the difference); README missing.
 
 After creating the file, summarize what it does in 3 lines.
+```
+
+</details>
+
+---
+
+## #4 — Skill `build-and-test`
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** згенерувати `.github/skills/build-and-test/SKILL.md` з точним вмістом `CMakeLists.txt`,
+  `tests/test_basic.cpp`, `ci.sh`, `ci.bat`, `.gitattributes`.
+- **Результат:** створено лише skill-файл. Copilot сам перевірив frontmatter, 9 розділів, code fences
+  і синтаксис bash-скрипту; `ci.bat` на macOS не запускався.
+- **Ручна перевірка:**
+  - [x] `CMakeLists.txt` збігається з еталоном: `hello_core` + `hello` + `hello_tests`, GoogleTest v1.17.0 через FetchContent,
+        `gtest_force_shared_crt ON`, `INSTALL_GTEST OFF`, `BUILD_GMOCK OFF`, `gtest_discover_tests`
+  - [x] `ci.sh` витягнуто зі skill і запущено на еталонному проєкті (Linux, CMake 3.28, GCC 13):
+        усі 5 етапів OK, `HelloTest.BasicAddition` Passed, `dist/bin/hello` → `Hello, World!`, у `dist/` лише `bin/hello`
+  - [x] негативні сценарії `ci.sh`: зайвий аргумент → exit 2; змінений вивід програми → `cmp` знаходить різницю, exit 1
+  - [x] `ci.bat` переглянуто вручну: `--config Release` / `-C Release`, `errorlevel` після кожної команди,
+        вивід порівнюється через `fc /b` (обидва файли з CRLF). Реальна перевірка — у GitHub Actions на `windows-latest`
+  - [x] `.gitattributes`: `*.sh eol=lf`, `*.bat eol=crlf`
+- **Що Copilot додав понад запит:** заборону більш ніж одного аргументу-етапу, порівняння виводу побайтово
+  (`cmp` / `fc /b`) замість порівняння рядків, обробку розбіжності з існуючими файлами.
+- **Рішення:** прийнято без змін.
+
+<details><summary>Текст промпту</summary>
+
+```
+Create ONE file: .github/skills/build-and-test/SKILL.md (VS Code agent skill format).
+Follow .github/agents/build-engineer.agent.md, docs/architecture.md and
+.github/skills/project-scaffold/SKILL.md (it creates src/hello.h, src/hello.cpp, src/main.cpp).
+Do not create other files.
+
+Frontmatter: name: build-and-test, description starting with "Use when ...".
+Sections (English): Purpose, When to use, Inputs, Steps, Idempotency, Outputs,
+Verification, Example input and expected result, Failure scenarios and handling.
+Inputs: project_name=hello, cxx_standard=17, build_type=Release, googletest_version=1.17.0.
+
+Steps must contain the EXACT content of each file in fenced code blocks:
+
+1. CMakeLists.txt:
+   - cmake_minimum_required(VERSION 3.20), project(hello LANGUAGES CXX), C++17 required, extensions OFF
+   - STATIC library hello_core from src/hello.cpp, PUBLIC include dir src
+   - executable hello from src/main.cpp linked to hello_core
+   - install(TARGETS hello RUNTIME DESTINATION bin)
+   - FetchContent googletest from
+     https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+     with DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+   - before FetchContent_MakeAvailable set as CACHE BOOL FORCE:
+     gtest_force_shared_crt ON, INSTALL_GTEST OFF, BUILD_GMOCK OFF
+   - enable_testing(), executable hello_tests from tests/test_basic.cpp linked to
+     hello_core and GTest::gtest_main, include(GoogleTest), gtest_discover_tests(hello_tests)
+
+2. tests/test_basic.cpp: TEST(HelloTest, BasicAddition) { EXPECT_EQ(hello::add(2, 3), 5); }
+
+3. ci.sh (bash, LF): accepts one stage argument configure|build|test|install|run|all
+   (default all). Functions named do_configure, do_build, do_test, do_install, do_run
+   (not "test", it is a bash builtin). set -euo pipefail, cd to script directory.
+   configure: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   build:     cmake --build build --config Release --parallel
+   test:      ctest --test-dir build -C Release --output-on-failure
+   install:   cmake --install build --config Release --prefix dist
+   run:       run dist/bin/hello and fail unless output is exactly "Hello, World!"
+   Print "==> [stage]" before each stage. Unknown stage -> error, exit 2.
+   After creating, make it executable (chmod +x ci.sh).
+
+4. ci.bat (cmd, CRLF): same stages and commands with Windows paths
+   (dist\bin\hello.exe). --config Release and -C Release are mandatory because
+   the Visual Studio generator is multi-config. Check errorlevel after every command
+   and exit /b 1 on failure. Compare program output with "Hello, World!".
+
+5. .gitattributes: *.sh text eol=lf and *.bat text eol=crlf (append if exists).
+
+Verification: on Linux/macOS run ./ci.sh; ctest shows HelloTest.BasicAddition Passed;
+dist/bin/hello prints "Hello, World!"; dist/ contains only bin/hello (no gtest files);
+git status does not show build/ or dist/. On Windows run ci.bat with the same checks.
+
+Failure scenarios: cmake not found; GoogleTest download fails (no network);
+test fails (stop, show ctest output, do not install); ci.sh not executable
+(Permission denied -> chmod +x); wrong line endings.
+
+After creating the file, summarize in 3 lines.
 ```
 
 </details>
