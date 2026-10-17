@@ -11,6 +11,7 @@
 | 2 | 17.10.2026 | виправлення manifest | пропуски усунено через AI |
 | 3 | 17.10.2026 | skill `project-scaffold` | прийнято без змін |
 | 4 | 17.10.2026 | skill `build-and-test` | прийнято без змін, `ci.sh` перевірено запуском |
+| 5 | 17.10.2026 | skill `github-actions` | прийнято без змін, сумнів Copilot перевірено actionlint |
 
 ---
 
@@ -245,6 +246,70 @@ git status does not show build/ or dist/. On Windows run ci.bat with the same ch
 Failure scenarios: cmake not found; GoogleTest download fails (no network);
 test fails (stop, show ctest output, do not install); ci.sh not executable
 (Permission denied -> chmod +x); wrong line endings.
+
+After creating the file, summarize in 3 lines.
+```
+
+</details>
+
+---
+
+## #5 — Skill `github-actions`
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** згенерувати `.github/skills/github-actions/SKILL.md` з точним вмістом `.github/workflows/ci.yml`
+  (матриця 3 ОС, 5 окремих кроків, що лише викликають скрипт, артефакт `dist/`).
+- **Результат:** створено лише skill-файл. Copilot перевірив YAML, матрицю, тригери, 5 етапів і артефакт, але
+  **попередив**, що не може гарантувати, що GitHub Actions прийме вираз `${{ matrix.shell }}` у `defaults.run.shell`,
+  і записав у skill правило: при відмові платформи — зупинитись і повідомити, а не тихо змінювати шаблон.
+- **Ручна перевірка сумніву Copilot:**
+  - [x] документація GitHub (Contexts → Context availability): для `jobs.<job_id>.defaults.run` доступний контекст `matrix`
+  - [x] workflow перевірено лінтером **actionlint 1.7.12** (перевіряє саме семантику GitHub Actions, а не лише YAML) — 0 помилок
+  - [x] контрольний негативний тест: заміна на `${{ matrix.bogus }}` → actionlint повідомляє
+        `property "bogus" is not defined in object type {os; script; shell}`, тобто вираз у `defaults.run.shell` реально перевіряється
+  - [x] у workflow немає cmake-команд і секретів, кожен `run` лише викликає `${{ matrix.script }} <stage>`
+  - [x] skill містить примітку про PyYAML (`on` → `True`)
+- **Рішення:** прийнято без змін. Остаточне підтвердження — успішний запуск GitHub Actions на 3 ОС.
+  actionlint варто використати в команді `check` для перевірки workflow.
+
+<details><summary>Текст промпту</summary>
+
+```
+Create ONE file: .github/skills/github-actions/SKILL.md (VS Code agent skill format).
+Follow .github/agents/build-engineer.agent.md, docs/architecture.md and
+.github/skills/build-and-test/SKILL.md (it creates ci.sh and ci.bat with stages
+configure|build|test|install|run). Do not create other files.
+
+Frontmatter: name: github-actions, description starting with "Use when ...".
+Sections (English): Purpose, When to use, Inputs, Steps, Idempotency, Outputs,
+Verification, Example input and expected result, Failure scenarios and handling.
+Inputs: branches=develop,master; os_matrix=ubuntu-latest,windows-latest,macos-latest.
+
+Steps must contain the EXACT content of .github/workflows/ci.yml in a fenced code block:
+- name: CI
+- on: push and pull_request for branches develop and master
+- permissions: contents: read
+- one job build-and-test, runs-on ${{ matrix.os }}, strategy fail-fast: false
+- matrix.os: [ubuntu-latest, windows-latest, macos-latest] plus matrix.include that adds
+  for each os two values: shell (bash for ubuntu/macos, cmd for windows) and
+  script ("bash ./ci.sh" for ubuntu/macos, "ci.bat" for windows)
+- defaults.run.shell: ${{ matrix.shell }}
+- steps: actions/checkout@v5; then five separate steps named Configure, Build, Test,
+  Install, Run, each only "run: ${{ matrix.script }} <stage>";
+  then actions/upload-artifact@v4 with name hello-${{ matrix.os }}, path dist/,
+  if-no-files-found: error
+- no build logic, no cmake commands, no secrets in the workflow
+
+Precondition: ci.sh and ci.bat must exist; otherwise stop with FAILED STEP.
+
+Verification: YAML parses; the matrix has exactly the 3 OS; triggers include develop and
+master for push and pull_request; every run step only calls the script; no secrets.
+Note for YAML parsing with Python/PyYAML: the key "on" is parsed as boolean True,
+so read triggers with data.get("on", data.get(True)).
+
+Failure scenarios: ci.sh/ci.bat missing; YAML syntax error; job fails only on Windows
+(line endings / multi-config); job fails on Linux/macOS with Permission denied.
 
 After creating the file, summarize in 3 lines.
 ```
