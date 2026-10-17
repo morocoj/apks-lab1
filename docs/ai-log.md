@@ -12,6 +12,8 @@
 | 3 | 17.10.2026 | skill `project-scaffold` | прийнято без змін |
 | 4 | 17.10.2026 | skill `build-and-test` | прийнято без змін, `ci.sh` перевірено запуском |
 | 5 | 17.10.2026 | skill `github-actions` | прийнято без змін, сумнів Copilot перевірено actionlint |
+| 6 | 17.10.2026 | commands `git-init`, `create-project`, `create-build`, `create-actions` | прийнято, знайдено 3 зауваження |
+| 7 | 17.10.2026 | виправлення 4 commands | зауваження усунено через AI |
 
 ---
 
@@ -312,6 +314,99 @@ Failure scenarios: ci.sh/ci.bat missing; YAML syntax error; job fails only on Wi
 (line endings / multi-config); job fails on Linux/macOS with Permission denied.
 
 After creating the file, summarize in 3 lines.
+```
+
+</details>
+
+---
+
+## #6 — Commands `git-init`, `create-project`, `create-build`, `create-actions`
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** створити 4 prompt files з розділами Purpose, Preconditions, Actions, Expected files,
+  Verification commands, Error message; не копіювати шаблони зі skills, а посилатися на них.
+- **Результат:** створено рівно 4 файли у `.github/prompts/`, frontmatter `agent: build-engineer`.
+  Copilot перевірив, що інших prompt files не з'явилося.
+- **Ручна перевірка:**
+  - [x] кожна команда викликає «свій» skill і не дублює його вміст (single source of truth)
+  - [x] `git-init` бере список `.gitignore` зі skill `project-scaffold`, не має права комітити, пушити й створювати гілки
+  - [x] `create-build` перевіряє `cmake --version` і наявність вихідних файлів; `create-actions` — наявність `ci.sh`/`ci.bat`
+  - [x] `create-actions` використовує actionlint, а якщо його немає — PyYAML з урахуванням `on` → `True`
+  - [x] єдиний формат помилки `FAILED STEP: <command> - <reason>`
+- **Знайдені зауваження:**
+  1. передумова `create-project` «git-init completed successfully» не перевіряється командою: при окремому запуску
+     `/create-project` агент не може її підтвердити (методичка: command має бути однозначною);
+  2. skills згадані текстом у бектиках, а не Markdown-посиланнями: VS Code автоматично додає в контекст лише файли,
+     на які в prompt file є посилання;
+  3. файли не закінчуються символом нового рядка.
+- **Рішення:** виправити через AI → запис #7.
+
+<details><summary>Текст промпту</summary>
+
+```
+Create FOUR prompt files (VS Code prompt file format) and nothing else:
+.github/prompts/git-init.prompt.md
+.github/prompts/create-project.prompt.md
+.github/prompts/create-build.prompt.md
+.github/prompts/create-actions.prompt.md
+Follow .github/agents/build-engineer.agent.md and the three skills in .github/skills/.
+
+Each file: frontmatter with description and agent: build-engineer.
+Body sections (English): Purpose, Preconditions, Actions, Expected files,
+Verification commands, Error message. Keep each file short; do NOT copy file
+templates from skills, reference the skill instead (single source of truth).
+
+git-init:
+- preconditions: inside a git work tree (git rev-parse --is-inside-work-tree);
+  current branch (git branch --show-current) is not develop, master or main,
+  otherwise stop and tell the user to run: git switch -c feature/<name>
+- actions: ensure .gitignore contains the entries listed in the project-scaffold
+  skill (append only missing ones); show git status --short and the current branch
+- never commit, push or create branches
+
+create-project: precondition git-init passed; apply skill project-scaffold;
+verification = the skill's Verification section.
+
+create-build: preconditions src/hello.h, src/hello.cpp, src/main.cpp exist and
+cmake --version works; apply skill build-and-test; verification: ./ci.sh
+(ci.bat on Windows) passes and HelloTest.BasicAddition is Passed.
+
+create-actions: precondition ci.sh and ci.bat exist; apply skill github-actions;
+verification: actionlint .github/workflows/ci.yml if actionlint is installed,
+otherwise parse YAML with Python (remember "on" may be parsed as True).
+
+Error message format in every file: FAILED STEP: <command> - <reason>
+
+After creating the files, show a table: command | precondition | skill | verification.
+```
+
+</details>
+
+---
+
+## #7 — Виправлення 4 commands
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** мінімально виправити 3 зауваження з запису #6, нічого іншого не змінювати.
+- **Результат / ручна перевірка:**
+  - [x] `create-project`: передумови замінено на перевірювані — `git rev-parse --is-inside-work-tree` успішний
+        і `git branch --show-current` не `develop`/`master`/`main`
+  - [x] у всіх 4 файлах skill підключено як `[name](../skills/<name>/SKILL.md)` (2–3 посилання на файл)
+  - [x] усі 4 файли закінчуються `\n`
+- **Рішення:** прийнято.
+
+<details><summary>Текст промпту</summary>
+
+```
+Update the four files in .github/prompts/ minimally, do not change anything else:
+1. In create-project.prompt.md replace the precondition "git-init completed" with
+   checkable conditions: git rev-parse --is-inside-work-tree succeeds and
+   git branch --show-current is not develop, master or main.
+2. In each file reference its skill as a relative Markdown link, e.g.
+   [project-scaffold](../skills/project-scaffold/SKILL.md), so VS Code attaches it as context.
+3. Make sure every file ends with a single newline.
 ```
 
 </details>
