@@ -14,6 +14,7 @@
 | 5 | 17.10.2026 | skill `github-actions` | прийнято без змін, сумнів Copilot перевірено actionlint |
 | 6 | 17.10.2026 | commands `git-init`, `create-project`, `create-build`, `create-actions` | прийнято, знайдено 3 зауваження |
 | 7 | 17.10.2026 | виправлення 4 commands | зауваження усунено через AI |
+| 8 | 17.10.2026 | command `check` | прийнято, 1 неоднозначність (код виходу `git grep`) |
 
 ---
 
@@ -407,6 +408,81 @@ Update the four files in .github/prompts/ minimally, do not change anything else
 2. In each file reference its skill as a relative Markdown link, e.g.
    [project-scaffold](../skills/project-scaffold/SKILL.md), so VS Code attaches it as context.
 3. Make sure every file ends with a single newline.
+```
+
+</details>
+
+---
+
+## #8 — Command `check`
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** створити `.github/prompts/check.prompt.md` — read-only перевірку з 10 пунктів, PASS/FAIL для кожного,
+  підсумок `RESULT: PASS` / `RESULT: FAIL`.
+- **Результат:** створено лише `check.prompt.md`. Copilot перевірив frontmatter, розділи, цілі посилань,
+  порядок перевірок і перенос рядка в кінці; самі перевірки проєкту не запускались (проєкту ще немає).
+- **Ручна перевірка:**
+  - [x] явно скасовує fail-fast з manifest: виконує всі 10 перевірок і лише потім підсумовує
+  - [x] read-only: дозволено створювати лише ігноровані `build/` і `dist/`; `git status --short` до і після порівнюється побайтово
+  - [x] перевіряє manifest, 3 skills, 6 commands, порядок викликів у `init`, 14 файлів проєкту, закінчення рядків,
+        збірку й тест `HelloTest.BasicAddition`, вміст `dist/`, workflow (actionlint або PyYAML з `on` → `True`), Git-гігієну
+  - [x] пошук секретів виключає сам `check.prompt.md` (інакше він знаходив би власні шаблони пошуку)
+  - [x] при знайденому секреті показує лише шлях, а не значення
+- **Знайдена неоднозначність:** у перевірці 9 написано «no matches is PASS, while matches or a command error is FAIL».
+  Але `git grep` повертає код **1**, коли збігів немає. Агент може сприйняти код 1 як помилку команди → хибний FAIL.
+  Потрібно уточнити: 0 = знайдено (FAIL), 1 = не знайдено (PASS), ≥ 2 = помилка (FAIL).
+- **Примітка до журналу:** у тексті промпту нижче шаблони секретів замінено описом, бо інакше перевірка 9
+  знаходила б їх у самому `ai-log.md`.
+- **Рішення:** уточнити через AI разом зі створенням `init` → запис #9.
+
+<details><summary>Текст промпту</summary>
+
+```
+Create ONE file: .github/prompts/check.prompt.md (VS Code prompt file), nothing else.
+Frontmatter: description and agent: build-engineer.
+Reference the manifest and all three skills as relative Markdown links.
+Sections (English): Purpose, Preconditions, Actions, Expected files, Verification, Error message.
+
+Purpose: read-only validation. It must NOT create, edit or delete tracked files.
+It may only create ignored runtime folders build/ and dist/ while running the build.
+Exception to the manifest's fail-fast rule: check runs ALL checks, records PASS or FAIL
+for each, and only then summarizes. It never fixes anything itself.
+
+Actions, in this order:
+1. Record git status --short (before).
+2. Manifest: .github/agents/build-engineer.agent.md exists, has frontmatter, and sections
+   Role, Scope of responsibility, Forbidden actions, Completion criteria.
+3. Skills: project-scaffold, build-and-test, github-actions each have SKILL.md with
+   frontmatter name + description and sections Purpose, Inputs, Outputs, Verification,
+   Failure scenarios and handling.
+4. Commands: the six prompt files git-init, create-project, create-build, create-actions,
+   check, init exist; each has description, agent: build-engineer and an Error message
+   section; init.prompt.md references git-init, create-project, create-build,
+   create-actions, check in this exact order.
+5. Project files exist: src/hello.h, src/hello.cpp, src/main.cpp, tests/test_basic.cpp,
+   CMakeLists.txt, ci.sh, ci.bat, .gitignore, .gitattributes, .github/workflows/ci.yml,
+   README.md, docs/architecture.md, docs/usage.md, docs/ai-log.md.
+6. Configuration: .gitignore has every entry from project-scaffold; ci.sh has LF endings
+   and is executable; ci.bat has CRLF endings; .gitattributes has both eol rules.
+7. Build and tests: run ./ci.sh (ci.bat on Windows). PASS only if the script exits 0,
+   ctest shows HelloTest.BasicAddition Passed, dist/bin/hello prints exactly
+   "Hello, World!", and dist/ contains only bin/hello (bin/hello.exe on Windows).
+8. Workflow: actionlint .github/workflows/ci.yml if installed, otherwise PyYAML with
+   data.get("on", data.get(True)); matrix is exactly ubuntu-latest, windows-latest,
+   macos-latest; push and pull_request include develop and master; every run step only
+   calls the script; no "cmake" in ci.yml.
+9. Git hygiene: git ls-files lists nothing under build/ or dist/; git grep finds no
+   <GitHub classic token prefix>, <GitHub fine-grained token prefix>, <AWS access key prefix>
+   or <PEM private key header> in tracked files, excluding
+   .github/prompts/check.prompt.md itself (pathspec ':!.github/prompts/check.prompt.md').
+10. Record git status --short (after) and compare with step 1; any difference is a FAIL.
+
+Output: a table  # | check | PASS/FAIL | details. For every failed check print
+FAILED CHECK: <check> - <reason>. Last line exactly "RESULT: PASS" only if all checks
+passed, otherwise "RESULT: FAIL" followed by the failed check names.
+
+After creating the file, summarize in 3 lines.
 ```
 
 </details>
