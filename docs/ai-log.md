@@ -15,6 +15,7 @@
 | 6 | 17.10.2026 | commands `git-init`, `create-project`, `create-build`, `create-actions` | прийнято, знайдено 3 зауваження |
 | 7 | 17.10.2026 | виправлення 4 commands | зауваження усунено через AI |
 | 8 | 17.10.2026 | command `check` | прийнято, 1 неоднозначність (код виходу `git grep`) |
+| 9 | 17.10.2026 | orchestrator `init`, `docs/usage.md`, уточнення `check` | прийнято без змін |
 
 ---
 
@@ -483,6 +484,73 @@ FAILED CHECK: <check> - <reason>. Last line exactly "RESULT: PASS" only if all c
 passed, otherwise "RESULT: FAIL" followed by the failed check names.
 
 After creating the file, summarize in 3 lines.
+```
+
+</details>
+
+---
+
+## #9 — Orchestrator `init`, `docs/usage.md`, уточнення `check`
+
+- **Дата:** 17.10.2026
+- **Модель:** GPT-6 Luna (Auto)
+- **Запит:** (A) створити `init.prompt.md`; (B) створити `docs/usage.md`; (C) у `check.prompt.md` уточнити лише
+  перевірку 9 — коди виходу `git grep`.
+- **Результат:** створено 2 файли, у `check.prompt.md` змінено рівно 1 рядок (перевірено `git diff`).
+- **Ручна перевірка `init`:**
+  - [x] передумови: Git work tree, гілка не `develop`/`master`/`main` (інакше `Run: git switch -c feature/lab1`), наявність manifest, 3 skills і 5 commands
+  - [x] 5 команд викликаються Markdown-посиланнями в порядку git-init → create-project → create-build → create-actions → check
+  - [x] fail-fast: `FAILED STEP: <command> - <reason>`, наступні кроки не запускаються
+  - [x] параметри беруться з таблиці Project parameters у manifest і передаються кожному кроку
+  - [x] повторний запуск: файли без змін позначаються `unchanged`
+  - [x] `INIT: SUCCESS` лише якщо `check` надрукував `RESULT: PASS`; інакше `INIT: FAILED at <step>`
+  - [x] заборонено commit / push / створення гілок
+- **Ручна перевірка `usage.md`:** передумови, гілки, запуск `/init` і окремих команд, локальна збірка з етапами,
+  очікуваний вивід, опис CI, сценарій «Broken check demo» (5 → 6 → `RESULT: FAIL` → повернути → `RESULT: PASS`).
+- **Ручна перевірка `check` (п. 9):** тепер 0 = збіги знайдено (FAIL), 1 = збігів немає (PASS), ≥ 2 = помилка (FAIL).
+  Підтверджено на реальному репозиторії: `git grep` без збігів повертає код 1.
+- **Рішення:** прийнято. Гілка `develop` містить повного агента; далі — запуск `/init` у `feature/lab1`.
+
+<details><summary>Текст промпту</summary>
+
+```
+Do exactly three things and nothing else:
+
+A) Create .github/prompts/init.prompt.md (VS Code prompt file).
+Frontmatter: description and agent: build-engineer.
+Sections (English): Purpose, Preconditions, Actions, Expected files, Verification, Error message.
+- Purpose: orchestrator that runs the full scenario using parameters from the
+  build-engineer manifest (Project parameters table) and passes them to every step.
+- Preconditions: inside a git work tree; current branch is not develop, master or main
+  (otherwise stop: "Run: git switch -c feature/lab1"); the manifest, three skills and the
+  five other prompt files exist.
+- Actions: run these commands in this exact order, as relative Markdown links:
+  1 [git-init](./git-init.prompt.md) 2 [create-project](./create-project.prompt.md)
+  3 [create-build](./create-build.prompt.md) 4 [create-actions](./create-actions.prompt.md)
+  5 [check](./check.prompt.md).
+  After each step run that command's verification. On the first failure stop immediately,
+  print FAILED STEP: <command> - <reason>, and do not run later steps.
+- Idempotency: re-running init on an existing project must not overwrite or duplicate
+  anything; report such files as "unchanged".
+- Verification / final report: table  step | status | files created | files updated |
+  files unchanged. Last line exactly "INIT: SUCCESS" only if check printed RESULT: PASS,
+  otherwise "INIT: FAILED at <step>".
+- Never commit, push or create branches.
+
+B) Create docs/usage.md (English) with exact commands for:
+prerequisites (VS Code + GitHub Copilot, CMake >= 3.20, C++ compiler, Git, optional actionlint);
+branch workflow (git switch develop, git switch -c feature/lab1); running the agent in
+Copilot Chat (Agent mode, select build-engineer, run /init); running single commands
+(/git-init, /create-project, /create-build, /create-actions, /check); local build
+(./ci.sh and ./ci.sh <stage>, ci.bat on Windows) with expected output; how CI runs;
+a "Broken check demo" section: change the expected value in tests/test_basic.cpp from
+5 to 6, run /check, observe RESULT: FAIL, revert the change, run /check again.
+
+C) In .github/prompts/check.prompt.md, check 9 only: clarify git grep exit codes:
+0 = matches found (FAIL), 1 = no matches (PASS), 2 or more = command error (FAIL).
+Do not change anything else in that file.
+
+After finishing, list the three changes in 3 lines.
 ```
 
 </details>
