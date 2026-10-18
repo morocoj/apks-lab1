@@ -19,6 +19,7 @@
 | 10 | 18.10.2026 | запуск `/init` у `feature/lab1` | `RESULT: PASS`; при перевірці знайдено дефект (немає `\n` у кінці файлів) |
 | 11 | 18.10.2026 | виправлення: перенос рядка в кінці файлів + правило в manifest | виправлено через AI, `ci.sh` знову PASS |
 | 12 | 18.10.2026 | перший запуск GitHub Actions (PR #1) | 3/3 ОС успішно; попередження Node.js 20 для `upload-artifact@v4` |
+| 13 | 18.10.2026 | оновлення `upload-artifact` до v6 | виправлено через AI, run #2 — 3/3 ОС без warnings |
 
 ---
 
@@ -649,3 +650,39 @@ Report which files were changed.
   - notice: мітка `ubuntu-latest` переходить на Ubuntu 26 з 19.10.2026 — інформаційно, змін не потребує.
   - notice: можливі черги на macOS arm64 runners — інформаційно.
 - **Рішення:** оновити `upload-artifact` до `v6` через AI (і у skill, і у workflow) → запис #13.
+
+---
+
+## #13 — Оновлення `actions/upload-artifact` до v6
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** замінити `actions/upload-artifact@v4` на `@v6` у skill `github-actions` і в `ci.yml`, перевірити actionlint.
+- **Результат / ручна перевірка:**
+  - [x] змінено рівно 2 рядки: `.github/skills/github-actions/SKILL.md` і `.github/workflows/ci.yml` (`git show --stat`: 2 файли, `+1 -1` у кожному)
+  - [x] шаблон у skill і фактичний workflow збігаються — наступний `/init` створить уже виправлену версію
+- **CI після виправлення:** run #2 (тригер `synchronize` PR #1) — https://github.com/morocoj/apks-lab1/actions/runs/39121212683
+
+  | Job | Результат | Час |
+  |---|---|---|
+  | build-and-test (macos-latest) | ✅ | 27 s |
+  | build-and-test (ubuntu-latest) | ✅ | 24 s |
+  | build-and-test (windows-latest) | ✅ | 45 s |
+
+  Annotations: **0 warnings**, лише 2 інформаційні notices (міграція `ubuntu-latest` на Ubuntu 26; черги macOS arm64).
+  Artifacts: `hello-macos-latest` 3.01 KB, `hello-ubuntu-latest` 3.22 KB, `hello-windows-latest` 6.32 KB.
+- **Рішення:** прийнято; PR #1 `lab1/finish` готовий до злиття в `develop`.
+
+<details><summary>Текст промпту</summary>
+
+```
+GitHub Actions run for PR #1 succeeded on all 3 OS, but shows warnings:
+"actions/upload-artifact@v4 targets Node.js 20 which is deprecated".
+Update minimally, change nothing else:
+1. In .github/skills/github-actions/SKILL.md replace actions/upload-artifact@v4 with actions/upload-artifact@v6.
+2. Apply the same change to .github/workflows/ci.yml.
+3. Validate with actionlint.
+Report changed lines.
+```
+
+</details>
