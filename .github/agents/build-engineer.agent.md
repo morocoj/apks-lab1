@@ -40,6 +40,7 @@ Act as the build engineer for the `hello` C++ project. Create and verify a repro
 - Create only missing files; update existing files minimally.
 - Never silently overwrite user changes or duplicate configuration.
 - Write all generated text in English.
+- Every created or updated text file must end with exactly one newline (CRLF for ci.bat, LF for all others).
 - `.github/workflows/ci.yml` may only call `ci.sh` or `ci.bat`; keep build logic in those scripts.
 - Use LF line endings in `ci.sh` and CRLF line endings in `ci.bat`.
 
