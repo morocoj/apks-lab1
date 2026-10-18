@@ -1,0 +1,8 @@
+build/
+dist/
+cmake-build-*/
+.cache/
+CMakeUserPresets.json
+*.log
+.env
+.DS_Store

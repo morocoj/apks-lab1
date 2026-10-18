@@ -16,6 +16,10 @@
 | 7 | 17.10.2026 | виправлення 4 commands | зауваження усунено через AI |
 | 8 | 17.10.2026 | command `check` | прийнято, 1 неоднозначність (код виходу `git grep`) |
 | 9 | 17.10.2026 | orchestrator `init`, `docs/usage.md`, уточнення `check` | прийнято без змін |
+| 10 | 18.10.2026 | запуск `/init` у `feature/lab1` | `RESULT: PASS`; при перевірці знайдено дефект (немає `\n` у кінці файлів) |
+| 11 | 18.10.2026 | виправлення: перенос рядка в кінці файлів + правило в manifest | виправлено через AI, `ci.sh` знову PASS |
+| 12 | 18.10.2026 | перший запуск GitHub Actions (PR #1) | 3/3 ОС успішно; попередження Node.js 20 для `upload-artifact@v4` |
+| 13 | 18.10.2026 | оновлення `upload-artifact` до v6 | виправлено через AI, run #2 — 3/3 ОС без warnings |
 
 ---
 
@@ -551,6 +555,134 @@ C) In .github/prompts/check.prompt.md, check 9 only: clarify git grep exit codes
 Do not change anything else in that file.
 
 After finishing, list the three changes in 3 lines.
+```
+
+</details>
+
+---
+
+## #10 — Запуск агента: `/init` у гілці `feature/lab1`
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** `/init` у новому чаті, гілка `feature/lab1`, на гілці лише файли агента і документація.
+- **Звіт агента:**
+
+  | step | status | files created | files updated | files unchanged |
+  |---|---|---|---|---|
+  | git-init | PASS | .gitignore | — | existing files |
+  | create-project | PASS | hello.h, hello.cpp, main.cpp, tests/ | — | README.md |
+  | create-build | PASS | CMakeLists.txt, test_basic.cpp, ci.sh, ci.bat, .gitattributes | — | scaffold source files |
+  | create-actions | PASS | ci.yml | — | build scripts |
+  | check | PASS | — | — | git status unchanged during check |
+
+  `ci.sh` пройшов, `HelloTest.BasicAddition` Passed, `dist/bin/hello` → `Hello, World!`, actionlint без помилок,
+  фінальний аудит — `RESULT: PASS`.
+- **Ручна перевірка результату на диску:**
+  - [x] створено всі очікувані файли; агент нічого не комітив (`git status` — лише untracked)
+  - [x] `build/Testing/.../LastTest.log`: `HelloTest.BasicAddition — Test Passed`
+  - [x] `dist/` містить лише `bin/hello`
+  - [x] `ci.sh` — LF і executable; `ci.bat` — CRLF; `build/` і `dist/` ігноруються (`git check-ignore`)
+  - [x] `CMakeLists.txt` і `ci.sh` порівняно `diff` зі шаблонами у skills — вміст ідентичний
+- **Знайдена помилка:** `diff` зі шаблонами показав `\ No newline at end of file` — **жоден** згенерований файл
+  не закінчується символом нового рядка (`CMakeLists.txt`, `ci.sh`, `ci.bat`, `src/*`, `tests/test_basic.cpp`,
+  `.gitignore`, `.gitattributes`, `ci.yml`). Збірці це не заважає, але: кожен файл позначається в `git diff`,
+  а для `.gitignore` це ризик — наступний дописаний рядок злився б з `.DS_Store` в один запис.
+  Агент цього не помітив, бо `check` не перевіряє закінчення файлів.
+- **Рішення:** виправити через AI і закріпити правило в manifest, щоб помилка не повторювалась → запис #11.
+
+---
+
+## #11 — Виправлення: перенос рядка в кінці згенерованих файлів
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** виправити дефект із запису #10 назавжди: додати правило в manifest і дописати `\n` у 10 згенерованих файлів,
+  нічого іншого не змінюючи; повторно запустити `./ci.sh`.
+- **Результат / ручна перевірка:**
+  - [x] у manifest (File rules) додано рівно 1 рядок: `Every created or updated text file must end with exactly one newline (CRLF for ci.bat, LF for all others).`
+  - [x] усі 10 файлів тепер закінчуються `\n` (перевірено `tail -c2 | od -c`), `ci.bat` — `\r\n`
+  - [x] `ci.bat` залишився повністю CRLF: 106 рядків, 106 символів `\r`
+  - [x] вміст файлів не змінено, крім останнього символу
+  - [x] `./ci.sh` пройшов, `HelloTest.BasicAddition` Passed
+- **Висновок:** помилку знайдено не агентом, а людиною під час рев'ю (порівняння `diff` зі шаблонами).
+  Виправлення внесено у правила агента, тому наступний запуск `/init` не повторить її.
+- **Рішення:** прийнято; далі — окремі коміти для проєкту, збірки й CI.
+
+<details><summary>Текст промпту</summary>
+
+```
+Problem found during review: every file created by /init is missing a trailing newline
+(git diff shows "\ No newline at end of file" for CMakeLists.txt, ci.sh, ci.bat,
+src/*, tests/test_basic.cpp, .gitignore, .gitattributes, .github/workflows/ci.yml).
+Fix it permanently, minimal changes only:
+1. In .github/agents/build-engineer.agent.md, File rules: add "Every created or updated
+   text file must end with exactly one newline (CRLF for ci.bat, LF for all others)."
+2. Add a single trailing newline to each listed generated file. Do not change any
+   other content; keep CRLF in ci.bat.
+3. Run ./ci.sh again and confirm HelloTest.BasicAddition passes.
+Report which files were changed.
+```
+
+</details>
+
+---
+
+## #12 — Перший запуск GitHub Actions (PR #1 `lab1/finish`)
+
+- **Дата:** 18.10.2026
+- **Подія:** відкриття PR `feature/lab1` → `develop` запустило workflow CI (тригер `pull_request`).
+- **Run:** https://github.com/morocoj/apks-lab1/actions/runs/39120887753
+- **Результат:** **Success** для всіх трьох jobs:
+
+  | Job | Результат |
+  |---|---|
+  | build-and-test (ubuntu-latest) | ✅ |
+  | build-and-test (windows-latest) | ✅ — перший реальний запуск `ci.bat`, multi-config Visual Studio |
+  | build-and-test (macos-latest) | ✅ |
+
+- **Артефакти:** `hello-ubuntu-latest` (3.22 KB), `hello-windows-latest` (6.32 KB), `hello-macos-latest` (3.01 KB).
+- **Підтверджено:** вираз `${{ matrix.shell }}` у `defaults.run.shell`, щодо якого Copilot висловлював сумнів у записі #5,
+  GitHub Actions приймає.
+- **Анотації:**
+  - 3 × warning: `actions/upload-artifact@v4` написаний під Node.js 20, який застарів; GitHub примусово запускає його на Node.js 24.
+    Зараз не ламає збірку, але в майбутньому може. Актуальна версія з Node.js 24 — `v6` (за release notes `actions/upload-artifact`).
+  - notice: мітка `ubuntu-latest` переходить на Ubuntu 26 з 19.10.2026 — інформаційно, змін не потребує.
+  - notice: можливі черги на macOS arm64 runners — інформаційно.
+- **Рішення:** оновити `upload-artifact` до `v6` через AI (і у skill, і у workflow) → запис #13.
+
+---
+
+## #13 — Оновлення `actions/upload-artifact` до v6
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** замінити `actions/upload-artifact@v4` на `@v6` у skill `github-actions` і в `ci.yml`, перевірити actionlint.
+- **Результат / ручна перевірка:**
+  - [x] змінено рівно 2 рядки: `.github/skills/github-actions/SKILL.md` і `.github/workflows/ci.yml` (`git show --stat`: 2 файли, `+1 -1` у кожному)
+  - [x] шаблон у skill і фактичний workflow збігаються — наступний `/init` створить уже виправлену версію
+- **CI після виправлення:** run #2 (тригер `synchronize` PR #1) — https://github.com/morocoj/apks-lab1/actions/runs/39121212683
+
+  | Job | Результат | Час |
+  |---|---|---|
+  | build-and-test (macos-latest) | ✅ | 27 s |
+  | build-and-test (ubuntu-latest) | ✅ | 24 s |
+  | build-and-test (windows-latest) | ✅ | 45 s |
+
+  Annotations: **0 warnings**, лише 2 інформаційні notices (міграція `ubuntu-latest` на Ubuntu 26; черги macOS arm64).
+  Artifacts: `hello-macos-latest` 3.01 KB, `hello-ubuntu-latest` 3.22 KB, `hello-windows-latest` 6.32 KB.
+- **Рішення:** прийнято; PR #1 `lab1/finish` готовий до злиття в `develop`.
+
+<details><summary>Текст промпту</summary>
+
+```
+GitHub Actions run for PR #1 succeeded on all 3 OS, but shows warnings:
+"actions/upload-artifact@v4 targets Node.js 20 which is deprecated".
+Update minimally, change nothing else:
+1. In .github/skills/github-actions/SKILL.md replace actions/upload-artifact@v4 with actions/upload-artifact@v6.
+2. Apply the same change to .github/workflows/ci.yml.
+3. Validate with actionlint.
+Report changed lines.
 ```
 
 </details>
