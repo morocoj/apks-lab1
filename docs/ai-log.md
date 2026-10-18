@@ -18,6 +18,7 @@
 | 9 | 17.10.2026 | orchestrator `init`, `docs/usage.md`, уточнення `check` | прийнято без змін |
 | 10 | 18.10.2026 | запуск `/init` у `feature/lab1` | `RESULT: PASS`; при перевірці знайдено дефект (немає `\n` у кінці файлів) |
 | 11 | 18.10.2026 | виправлення: перенос рядка в кінці файлів + правило в manifest | виправлено через AI, `ci.sh` знову PASS |
+| 12 | 18.10.2026 | перший запуск GitHub Actions (PR #1) | 3/3 ОС успішно; попередження Node.js 20 для `upload-artifact@v4` |
 
 ---
 
@@ -623,3 +624,28 @@ Report which files were changed.
 ```
 
 </details>
+
+---
+
+## #12 — Перший запуск GitHub Actions (PR #1 `lab1/finish`)
+
+- **Дата:** 18.10.2026
+- **Подія:** відкриття PR `feature/lab1` → `develop` запустило workflow CI (тригер `pull_request`).
+- **Run:** https://github.com/morocoj/apks-lab1/actions/runs/39120887753
+- **Результат:** **Success** для всіх трьох jobs:
+
+  | Job | Результат |
+  |---|---|
+  | build-and-test (ubuntu-latest) | ✅ |
+  | build-and-test (windows-latest) | ✅ — перший реальний запуск `ci.bat`, multi-config Visual Studio |
+  | build-and-test (macos-latest) | ✅ |
+
+- **Артефакти:** `hello-ubuntu-latest` (3.22 KB), `hello-windows-latest` (6.32 KB), `hello-macos-latest` (3.01 KB).
+- **Підтверджено:** вираз `${{ matrix.shell }}` у `defaults.run.shell`, щодо якого Copilot висловлював сумнів у записі #5,
+  GitHub Actions приймає.
+- **Анотації:**
+  - 3 × warning: `actions/upload-artifact@v4` написаний під Node.js 20, який застарів; GitHub примусово запускає його на Node.js 24.
+    Зараз не ламає збірку, але в майбутньому може. Актуальна версія з Node.js 24 — `v6` (за release notes `actions/upload-artifact`).
+  - notice: мітка `ubuntu-latest` переходить на Ubuntu 26 з 19.10.2026 — інформаційно, змін не потребує.
+  - notice: можливі черги на macOS arm64 runners — інформаційно.
+- **Рішення:** оновити `upload-artifact` до `v6` через AI (і у skill, і у workflow) → запис #13.

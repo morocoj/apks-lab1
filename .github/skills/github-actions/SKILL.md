@@ -61,7 +61,7 @@ Use for the `github-actions` stage of `/create-actions` or `/init`, after the bu
            run: ${{ matrix.script }} install
          - name: Run
            run: ${{ matrix.script }} run
-         - uses: actions/upload-artifact@v4
+         - uses: actions/upload-artifact@v6
            with:
              name: hello-${{ matrix.os }}
              path: dist/
