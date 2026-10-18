@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+    branches: [develop, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            script: "bash ./ci.sh"
+          - os: windows-latest
+            shell: cmd
+            script: "ci.bat"
+          - os: macos-latest
+            shell: bash
+            script: "bash ./ci.sh"
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure
+        run: ${{ matrix.script }} configure
+      - name: Build
+        run: ${{ matrix.script }} build
+      - name: Test
+        run: ${{ matrix.script }} test
+      - name: Install
+        run: ${{ matrix.script }} install
+      - name: Run
+        run: ${{ matrix.script }} run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hello-${{ matrix.os }}
+          path: dist/
+          if-no-files-found: error
