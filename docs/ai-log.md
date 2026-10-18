@@ -16,6 +16,8 @@
 | 7 | 17.10.2026 | виправлення 4 commands | зауваження усунено через AI |
 | 8 | 17.10.2026 | command `check` | прийнято, 1 неоднозначність (код виходу `git grep`) |
 | 9 | 17.10.2026 | orchestrator `init`, `docs/usage.md`, уточнення `check` | прийнято без змін |
+| 10 | 18.10.2026 | запуск `/init` у `feature/lab1` | `RESULT: PASS`; при перевірці знайдено дефект (немає `\n` у кінці файлів) |
+| 11 | 18.10.2026 | виправлення: перенос рядка в кінці файлів + правило в manifest | виправлено через AI, `ci.sh` знову PASS |
 
 ---
 
@@ -551,6 +553,73 @@ C) In .github/prompts/check.prompt.md, check 9 only: clarify git grep exit codes
 Do not change anything else in that file.
 
 After finishing, list the three changes in 3 lines.
+```
+
+</details>
+
+---
+
+## #10 — Запуск агента: `/init` у гілці `feature/lab1`
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** `/init` у новому чаті, гілка `feature/lab1`, на гілці лише файли агента і документація.
+- **Звіт агента:**
+
+  | step | status | files created | files updated | files unchanged |
+  |---|---|---|---|---|
+  | git-init | PASS | .gitignore | — | existing files |
+  | create-project | PASS | hello.h, hello.cpp, main.cpp, tests/ | — | README.md |
+  | create-build | PASS | CMakeLists.txt, test_basic.cpp, ci.sh, ci.bat, .gitattributes | — | scaffold source files |
+  | create-actions | PASS | ci.yml | — | build scripts |
+  | check | PASS | — | — | git status unchanged during check |
+
+  `ci.sh` пройшов, `HelloTest.BasicAddition` Passed, `dist/bin/hello` → `Hello, World!`, actionlint без помилок,
+  фінальний аудит — `RESULT: PASS`.
+- **Ручна перевірка результату на диску:**
+  - [x] створено всі очікувані файли; агент нічого не комітив (`git status` — лише untracked)
+  - [x] `build/Testing/.../LastTest.log`: `HelloTest.BasicAddition — Test Passed`
+  - [x] `dist/` містить лише `bin/hello`
+  - [x] `ci.sh` — LF і executable; `ci.bat` — CRLF; `build/` і `dist/` ігноруються (`git check-ignore`)
+  - [x] `CMakeLists.txt` і `ci.sh` порівняно `diff` зі шаблонами у skills — вміст ідентичний
+- **Знайдена помилка:** `diff` зі шаблонами показав `\ No newline at end of file` — **жоден** згенерований файл
+  не закінчується символом нового рядка (`CMakeLists.txt`, `ci.sh`, `ci.bat`, `src/*`, `tests/test_basic.cpp`,
+  `.gitignore`, `.gitattributes`, `ci.yml`). Збірці це не заважає, але: кожен файл позначається в `git diff`,
+  а для `.gitignore` це ризик — наступний дописаний рядок злився б з `.DS_Store` в один запис.
+  Агент цього не помітив, бо `check` не перевіряє закінчення файлів.
+- **Рішення:** виправити через AI і закріпити правило в manifest, щоб помилка не повторювалась → запис #11.
+
+---
+
+## #11 — Виправлення: перенос рядка в кінці згенерованих файлів
+
+- **Дата:** 18.10.2026
+- **Модель:** Auto (агент `build-engineer`)
+- **Запит:** виправити дефект із запису #10 назавжди: додати правило в manifest і дописати `\n` у 10 згенерованих файлів,
+  нічого іншого не змінюючи; повторно запустити `./ci.sh`.
+- **Результат / ручна перевірка:**
+  - [x] у manifest (File rules) додано рівно 1 рядок: `Every created or updated text file must end with exactly one newline (CRLF for ci.bat, LF for all others).`
+  - [x] усі 10 файлів тепер закінчуються `\n` (перевірено `tail -c2 | od -c`), `ci.bat` — `\r\n`
+  - [x] `ci.bat` залишився повністю CRLF: 106 рядків, 106 символів `\r`
+  - [x] вміст файлів не змінено, крім останнього символу
+  - [x] `./ci.sh` пройшов, `HelloTest.BasicAddition` Passed
+- **Висновок:** помилку знайдено не агентом, а людиною під час рев'ю (порівняння `diff` зі шаблонами).
+  Виправлення внесено у правила агента, тому наступний запуск `/init` не повторить її.
+- **Рішення:** прийнято; далі — окремі коміти для проєкту, збірки й CI.
+
+<details><summary>Текст промпту</summary>
+
+```
+Problem found during review: every file created by /init is missing a trailing newline
+(git diff shows "\ No newline at end of file" for CMakeLists.txt, ci.sh, ci.bat,
+src/*, tests/test_basic.cpp, .gitignore, .gitattributes, .github/workflows/ci.yml).
+Fix it permanently, minimal changes only:
+1. In .github/agents/build-engineer.agent.md, File rules: add "Every created or updated
+   text file must end with exactly one newline (CRLF for ci.bat, LF for all others)."
+2. Add a single trailing newline to each listed generated file. Do not change any
+   other content; keep CRLF in ci.bat.
+3. Run ./ci.sh again and confirm HelloTest.BasicAddition passes.
+Report which files were changed.
 ```
 
 </details>
